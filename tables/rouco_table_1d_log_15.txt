@@ -1,0 +1,1 @@
+output_Pitx1/RoucoEtAl.txt	Pitx1	-15	-5	limbtype
