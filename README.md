@@ -6,4 +6,4 @@ scripts directory contains the bash scripts used to launch jobs on a SLURM clust
 
 tables directory contains the tables used in the scripts above and the generated data.
 
-bash scripts from 00_ to 11_ show all the steps to reproduce all figures using the scripts and the tables.
+bash scripts from 00_ to 15_ show all the steps to reproduce all figures using the scripts and the tables.
