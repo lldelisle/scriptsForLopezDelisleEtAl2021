@@ -1,0 +1,7 @@
+/home/ldelisle/softwares/scriptsForLopezDelisleEtAl2021//tables/nih3t3_generated_2d_log_1.txt	1_-9_-9_0.5_0.5_0.5_x	1_-9_-9_0.5_0.5_0.5_y	-12	-6
+/home/ldelisle/softwares/scriptsForLopezDelisleEtAl2021//tables/nih3t3_generated_2d_log_1.txt	1_-9_-9_0.5_0.5_-0.5_x	1_-9_-9_0.5_0.5_-0.5_y	-12	-6
+/home/ldelisle/softwares/scriptsForLopezDelisleEtAl2021//tables/nih3t3_generated_2d_log_1.txt	1_-9_-9_0.5_0.5_0_x	1_-9_-9_0.5_0.5_0_y	-12	-6
+/home/ldelisle/softwares/scriptsForLopezDelisleEtAl2021//tables/nih3t3_generated_2d_log_2.txt	0.5_0_0_0.5_x	0.5_0_0_0.5_y	-12	-6
+/home/ldelisle/softwares/scriptsForLopezDelisleEtAl2021//tables/nih3t3_generated_2d_log_2.txt	0_0.5_0.5_0_x	0_0.5_0.5_0_y	-12	-6
+/home/ldelisle/softwares/scriptsForLopezDelisleEtAl2021//tables/nih3t3_generated_2d_log_3.txt	0.5_0_0_0.5_x	0.5_0_0_0.5_y	-12	-6
+/home/ldelisle/softwares/scriptsForLopezDelisleEtAl2021//tables/nih3t3_generated_2d_log_3.txt	0_0.5_0.5_0_x	0_0.5_0.5_0_y	-12	-6

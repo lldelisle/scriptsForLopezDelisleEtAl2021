@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import poisson, uniform, truncnorm
+from scipy.stats import poisson, uniform, truncnorm, norm
 import argparse
 import sys
 import pandas as pd
@@ -17,7 +17,7 @@ def get_masks(amp, n, seed):
   return(masks)
 
 
-def generate_values_from_name(colname, n, seed):
+def generate_values_from_name(colname, n, seed, xscale):
   distrib = colname.split('_')[::4]
   amp = np.array([float(p) for p in colname.split('_')[1::4]])
   # Amplitude
@@ -27,16 +27,25 @@ def generate_values_from_name(colname, n, seed):
   scale = np.array([float(p) for p in colname.split('_')[3::4]])
   masks = get_masks(amp, n, seed)
   exp_values = np.zeros(n)
+  if xscale == 'log':
+    exp_values[:] = -np.Inf
   for i, (cur_distrib, cur_loc, cur_scale) in enumerate(zip(distrib, loc, scale)):
     if cur_distrib == "uniform":
       exp_values[masks[i]] = uniform.rvs(loc=cur_loc, scale=cur_scale,
                                          size=sum(masks[i]),
                                          random_state=seed)
     elif cur_distrib == "gauss":
-      exp_values[masks[i]] = truncnorm.rvs(- cur_loc / cur_scale, np.inf,
-                                           loc=cur_loc, scale=cur_scale,
-                                           size=sum(masks[i]),
-                                           random_state=seed)
+          if xscale == 'Seurat':
+            exp_values[masks[i]] = truncnorm.rvs(- cur_loc / cur_scale, np.inf,
+                                                 loc=cur_loc, scale=cur_scale,
+                                                 size=sum(masks[i]),
+                                                 random_state=seed)
+          elif xscale == 'log':
+            exp_values[masks[i]] = norm.rvs(loc=cur_loc, scale=cur_scale,
+                                            size=sum(masks[i]),
+                                            random_state=seed)
+          else:
+            raise Exception("Only Seurat and log are implemented.")
     else:
       raise Exception("The distribution asked is not implemented.")
   return(exp_values)
@@ -48,7 +57,8 @@ def generate_paired_data(input_file,
                          colname_y1,
                          colname_y2,
                          props4groups,
-                         starting_seed, fo):
+                         starting_seed, fo,
+                         xscale, outputSanity):
     data = pd.read_csv(input_file, sep="\t")
     N = data['nCount_RNA']
     # There are 4 groups:
@@ -71,23 +81,33 @@ def generate_paired_data(input_file,
       masks = get_masks(amps, N.size, starting_seed + 5 * id_col)
       exp_values_x = np.zeros(N.size)
       exp_values_y = np.zeros(N.size)
+      # We don't need to set to -np.Inf for log
+      # Because we are sure that the masks cover all.
       # Generate x for g0, g1
       exp_values_x[masks[0] + masks[1]] = \
-        generate_values_from_name(colname_x1, sum(masks[0] + masks[1]), starting_seed + 5 * id_col + 1)
+        generate_values_from_name(colname_x1, sum(masks[0] + masks[1]), starting_seed + 5 * id_col + 1, xscale)
       # Generate x for g2, g3
       exp_values_x[masks[2] + masks[3]] = \
-        generate_values_from_name(colname_x2, sum(masks[2] + masks[3]), starting_seed + 5 * id_col + 2)
+        generate_values_from_name(colname_x2, sum(masks[2] + masks[3]), starting_seed + 5 * id_col + 2, xscale)
       # Generate y for g0, g2
       exp_values_y[masks[0] + masks[2]] = \
-        generate_values_from_name(colname_y1, sum(masks[0] + masks[2]), starting_seed + 5 * id_col + 3)
+        generate_values_from_name(colname_y1, sum(masks[0] + masks[2]), starting_seed + 5 * id_col + 3, xscale)
       # Generate y for g1, g3
       exp_values_y[masks[1] + masks[3]] = \
-        generate_values_from_name(colname_y2, sum(masks[1] + masks[3]), starting_seed + 5 * id_col + 4)
+        generate_values_from_name(colname_y2, sum(masks[1] + masks[3]), starting_seed + 5 * id_col + 4, xscale)
       # We now apply the poisson distribution
-      ks_x = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_x) - 1),
-                         random_state=starting_seed + id_col)
-      ks_y = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_y) - 1),
-                         random_state=starting_seed + id_col)
+      if xscale == 'Seurat':
+        ks_x = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_x) - 1),
+                           random_state=starting_seed + id_col)
+        ks_y = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_y) - 1),
+                          random_state=starting_seed + id_col)
+      elif xscale == 'log':
+        ks_x = poisson.rvs(mu=N * np.exp(exp_values_x),
+                           random_state=starting_seed + id_col)
+        ks_y = poisson.rvs(mu=N * np.exp(exp_values_y),
+                           random_state=starting_seed + id_col)
+      else:
+        raise Exception("Only Seurat and log are implemented.")
       data[f'{prop4group}_x'] = ks_x
       data[f'{prop4group}_y'] = ks_y
       # We also store the expression before poisson
@@ -101,6 +121,12 @@ def generate_paired_data(input_file,
       data[f'{prop4group}_group'] = group
     # Export
     data.to_csv(fo, index = False, header=True, sep='\t')
+
+    # Export for Sanity
+    if outputSanity is not None:
+      count_columns = [a + b for a, b in zip(np.repeat(props4groups, 2), ['_x', '_y'] * len(props4groups))]
+      data['complement'] = data.loc[:, 'nCount_RNA'] - np.sum(data.loc[:, count_columns], axis=1)
+      data.loc[:, count_columns + ['complement']].T.to_csv(outputSanity, index=True, header=True, sep='\t', index_label = 'GeneID')
 
 
 def parse_arguments(args=None):
@@ -143,12 +169,16 @@ def parse_arguments(args=None):
     argp.add_argument('--props4groups', default=['0.25_0.25_0.25_0.25'], required=True, nargs='+',
                       help="proportions of 4 groups to simulate (format is "
                       "group0_group1_group2_group4. The sum should be 1.")
+    argp.add_argument('--xscale', default='Seurat', choices=['Seurat', 'log'],
+                      help="Scale used to convert expression to lambda in Poisson sampling.")
     argp.add_argument('--startingSeed', default=1, type=int,
                       help="Set seed for reproductible results "
                       "(for each column the seed used for masks is startingSeed + 5 * col_id).")
     argp.add_argument('--output', default=sys.stdout,
                       type=argparse.FileType('w'),
                       help="Output table.")
+    argp.add_argument('--outputSanity', default=None,
+                      help="Output table for Sanity.")
     return(argp)
 
 
@@ -156,7 +186,8 @@ def main(args=None):
     args = parse_arguments().parse_args(args)
     generate_paired_data(args.input, args.colnamex1, args.colnamex2, 
                          args.colnamey1, args.colnamey2,
-                         args.props4groups, args.startingSeed, args.output)
+                         args.props4groups, args.startingSeed, args.output,
+                         args.xscale, args.outputSanity)
 
 if __name__ == "__main__":
     args = None

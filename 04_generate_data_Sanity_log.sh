@@ -34,9 +34,14 @@ for simulation in $my_simulations; do
   echo -e "${gitHubDirectory}/tables/nih3t3_generated_1d_log.txt\t${simulation}\t${xmin}\t${xmax}" >> $pathForTable
   nsim=$((nsim + 1))
 done
+# To compare baredSC 1 gauss with Sanity we extend the x range:
+echo -e "${gitHubDirectory}/tables/nih3t3_generated_1d_log.txt\tgauss_0.5_-9.5_0.5_gauss_0.5_-6_0.5\t-15\t-3" >> $pathForTable
+nsim=$((nsim + 1))
 
 # I launch the parallel mcmc in log scale:
 sbatch --array 1-${nsim} --chdir $PWD/ ${gitHubDirectory}/scripts/sbatch_baredSC_1d_log.sh ${pathForTable} $PWD/output_Sanity/mcmc/
+# I relaunch single gauss with pretty bins:
+sbatch --array 1-${nsim} --chdir $PWD/ ${gitHubDirectory}/scripts/sbatch_baredSC_1d_log_singleGauss.sh ${pathForTable} $PWD/output_Sanity/mcmc/
 
 # I clone sanity
 git clone https://github.com/jmbreda/Sanity.git

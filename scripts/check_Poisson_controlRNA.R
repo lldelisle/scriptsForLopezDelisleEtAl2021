@@ -108,6 +108,55 @@ g <- ggplot(counts.df, aes(x = "", y = tot.counts)) +
   facet_grid(expe ~ ., scales = "free")
 ggsave(file.path(output.directory, "Nis.pdf"), width = 5, height = 10)
 
+# I evaluate the phi_poisson:
+ddply(counts.df, .(expe), summarize,
+      phi.poisson = round(var(tot.counts)/mean(tot.counts)^2, 3))
+#                expe phi.poisson
+# 1           HEK293T      0.2298
+# 2    HEK293T_noERCC      0.2298
+# 3             Klein      0.0451
+# 4      Klein_noERCC      0.0454
+# 5           Macosko      0.1151
+# 6    Macosko_noERCC      0.1345
+# 7            NIH3T3      0.1092
+# 8     NIH3T3_noERCC      0.1092
+# 9         Svensson1      0.0969
+# 10 Svensson1_noERCC      0.1042
+# 11        Svensson2      0.3787
+# 12 Svensson2_noERCC      0.4247
+# 13            Zheng      0.0426
+
+# Select like in Ahlmann-Eltze et al.
+all.data.subset <- lapply(names(all.data), function(expe){
+  threshold <- median(tot.counts[[expe]]) * c(1, 1.3)
+  all.data[[expe]][, which(tot.counts[[expe]] < threshold[2] & tot.counts[[expe]] > threshold[1])]
+})
+names(all.data.subset) <- paste0(names(all.data), "_subset")
+tot.counts.subset <- lapply(tot.counts, function(v){
+  threshold <- median(v) * c(1, 1.3)
+  return(v[which(v < threshold[2] & v > threshold[1])])
+})
+names(tot.counts.subset) <- paste0(names(tot.counts), "_subset")
+counts.df.subset <- data.frame(tot.counts = unlist(tot.counts.subset),
+                               expe = rep(names(tot.counts.subset), sapply(tot.counts.subset, length)))
+ddply(counts.df.subset, .(expe), summarize,
+      phi.poisson = round(var(tot.counts)/mean(tot.counts)^2, 3))
+#                       expe phi.poisson
+# 1    HEK293T_noERCC_subset       0.005
+# 2           HEK293T_subset       0.005
+# 3      Klein_noERCC_subset       0.005
+# 4             Klein_subset       0.005
+# 5    Macosko_noERCC_subset       0.005
+# 6           Macosko_subset       0.005
+# 7     NIH3T3_noERCC_subset       0.005
+# 8            NIH3T3_subset       0.005
+# 9  Svensson1_noERCC_subset       0.004
+# 10        Svensson1_subset       0.004
+# 11 Svensson2_noERCC_subset       0.005
+# 12        Svensson2_subset       0.005
+# 13            Zheng_subset       0.003
+
+
 # The estimate of variance of Xi
 var_est <- lapply(names(all.data), function(expe){
   rowSums(rep(1, nrow(all.data[[expe]])) %*% t(tot.counts[[expe]]) * 

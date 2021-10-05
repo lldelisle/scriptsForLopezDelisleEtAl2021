@@ -125,7 +125,7 @@ else
       --xscale log --xmin ${xmin} --xmax ${xmax} \
       --outputs ${outputs} --geneColName ${gene} \
       --title ${title} --figure ${outputFolder}/${title}_pretty.png \
-    --prettyBins 200 \
+      --prettyBins 200 \
       --nis 10000 &> ${outputFolder}/${title}_pretty.log &
   done
 fi

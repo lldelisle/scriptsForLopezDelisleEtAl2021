@@ -35,7 +35,20 @@ def trunc_norm_2d(mu, sigma, corr, size, seed):
   return(values)
 
 
-def generate_values_from_name(colname, n, seed):
+def norm_2d(mu, sigma, corr, size, seed):
+  try:
+    rng = np.random.default_rng(seed)
+  except AttributeError:
+    # For older numpy versions:
+    np.random.seed(seed)
+    rng = np.random
+  cov = np.array([[sigma[0] * sigma[0], sigma[0] * sigma[1] * corr],
+                  [sigma[0] * sigma[1] * corr, sigma[1] * sigma[1]]])
+  values = rng.multivariate_normal(mu, cov, size)
+  return(values)
+
+
+def generate_values_from_name(colname, n, seed, xscale):
   cn_split = colname.split('_')
   amp = np.array([float(p) for p in cn_split[::6]])
   # Amplitude
@@ -46,27 +59,46 @@ def generate_values_from_name(colname, n, seed):
   corr = np.array([float(p) for p in cn_split[5::6]]) 
   masks = get_masks(amp, n, seed)
   exp_values = np.zeros((n, 2))
+  if xscale == 'log':
+    exp_values[:, :] = -np.Inf
   for i, (cur_mu, cur_sigma, cur_corr) in enumerate(zip(mu, sigma, corr)):
-    exp_values[masks[i]] = trunc_norm_2d(mu=cur_mu, sigma=cur_sigma,
-                                         corr=cur_corr,
-                                         size=sum(masks[i]),
-                                         seed=seed)
+    if xscale == 'Seurat':
+      exp_values[masks[i]] = trunc_norm_2d(mu=cur_mu, sigma=cur_sigma,
+                                           corr=cur_corr,
+                                           size=sum(masks[i]),
+                                           seed=seed)
+    elif xscale == 'log':
+      exp_values[masks[i]] = norm_2d(mu=cur_mu, sigma=cur_sigma,
+                                     corr=cur_corr,
+                                     size=sum(masks[i]),
+                                     seed=seed)
+    else:
+      raise Exception("Only Seurat and log are implemented.")
   return(exp_values)
 
 
 def generate_2dgauss_data(input_file,
                           colnames,
-                          starting_seed, fo):
+                          starting_seed, fo,
+                          xscale, outputSanity):
     data = pd.read_csv(input_file, sep="\t")
     N = data['nCount_RNA']
     for id_col, colname in enumerate(colnames):
-      exp_values = generate_values_from_name(colname, N.size, starting_seed + id_col)
+      exp_values = generate_values_from_name(colname, N.size, starting_seed + id_col, xscale)
       exp_values_x, exp_values_y  = np.transpose(exp_values)
       # We now apply the poisson distribution
-      ks_x = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_x) - 1),
-                         random_state=starting_seed + id_col)
-      ks_y = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_y) - 1),
-                         random_state=starting_seed + id_col)
+      if xscale == 'Seurat':
+        ks_x = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_x) - 1),
+                           random_state=starting_seed + id_col)
+        ks_y = poisson.rvs(mu=N * 1e-4 * (np.exp(exp_values_y) - 1),
+                          random_state=starting_seed + id_col)
+      elif xscale == 'log':
+        ks_x = poisson.rvs(mu=N * np.exp(exp_values_x),
+                           random_state=starting_seed + id_col)
+        ks_y = poisson.rvs(mu=N * np.exp(exp_values_y),
+                           random_state=starting_seed + id_col)
+      else:
+        raise Exception("Only Seurat and log are implemented.")
       data[f'{colname}_x'] = ks_x
       data[f'{colname}_y'] = ks_y
       # We also store the expression before poisson
@@ -74,6 +106,12 @@ def generate_2dgauss_data(input_file,
       data[f'{colname}_y_expression'] = exp_values_y
     # Export
     data.to_csv(fo, index = False, header=True, sep='\t')
+
+    # Export for Sanity
+    if outputSanity is not None:
+      count_columns = [a + b for a, b in zip(np.repeat(colnames, 2), ['_x', '_y'] * len(colnames))]
+      data['complement'] = data.loc[:, 'nCount_RNA'] - np.sum(data.loc[:, count_columns], axis=1)
+      data.loc[:, count_columns + ['complement']].T.to_csv(outputSanity, index=True, header=True, sep='\t', index_label = 'GeneID')
 
 
 def parse_arguments(args=None):
@@ -88,19 +126,24 @@ def parse_arguments(args=None):
                       " For gauss, mu and sig are the mean and the sigma of the "
                       "non-trucated gaussian. Amp is the proportion of cells in this distribution."
                       " The proportion of 0 is 1 - sum(amp1, amp2...)")
+    argp.add_argument('--xscale', default='Seurat', choices=['Seurat', 'log'],
+                      help="Scale used to convert expression to lambda in Poisson sampling.")
     argp.add_argument('--startingSeed', default=1, type=int,
                       help="Set seed for reproductible results "
                       "(for each column the seed used for masks is startingSeed + 5 * col_id).")
     argp.add_argument('--output', default=sys.stdout,
                       type=argparse.FileType('w'),
                       help="Output table.")
+    argp.add_argument('--outputSanity', default=None,
+                      help="Output table for Sanity.")
     return(argp)
 
 
 def main(args=None):
     args = parse_arguments().parse_args(args)
     generate_2dgauss_data(args.input, args.colnames,
-                          args.startingSeed, args.output)
+                          args.startingSeed, args.output,
+                          args.xscale, args.outputSanity)
 
 if __name__ == "__main__":
     args = None
