@@ -56,11 +56,13 @@ meta.generation$pretty <- apply(meta.generation, 1, function(v){
       first.letter <- "U"
     }
     if (i > 1){
+      # pretty.str <- paste0(pretty.str, " + ")
       pretty.str <- paste0(pretty.str, "\n")
     }
     pretty.str <- paste0(pretty.str, first.letter, "(", split.string[4 * (i-1) + 3], ",", split.string[4 * (i-1) + 4], ")")
   }
   if (v['prop.zero'] > 0){
+    # pretty.str <- paste0(pretty.str, " + ", as.numeric(v['prop.zero']) * 100, "% of 0")
     pretty.str <- paste0(pretty.str, "\n", as.numeric(v['prop.zero']) * 100, "% of 0")
   }
   return(pretty.str)
@@ -234,12 +236,15 @@ ggplot(subset(my.df.u, nb.rep >= 3 & gene != "gauss_0.25_0.75_0.25"), aes(x = ng
   theme(
     panel.grid.major = element_line(colour='grey90', size = 0.2)
   ) +
-  xlab("Number of Gaussians") +
+  xlab("Number of Gaussians in the model") +
   ylab("Number of samples in MCMC at convergence") +
   geom_vline(data = subset(expected, gene != "gauss_0.25_0.75_0.25"),
-             aes(xintercept = expected),
-             lty = 2, alpha = 0.2) +
-  scale_color_discrete("m\n(Number of\nGaussians)") +
-  scale_fill_discrete("m\n(Number of\nGaussians)")
+             aes(xintercept = expected,
+                 lty = "expected"), alpha = 0.2) +
+  scale_color_discrete("m\n(Number of\nGaussians\nin the model)") +
+  scale_fill_discrete("m\n(Number of\nGaussians\nin the model)") +
+  scale_linetype_manual("",
+                        values = c('expected' = 2),
+                        label = c('Number of\nGaussians\nin the real\ndistribution'))
 
 ggsave(paste0(output.prefix, "_sup.pdf"), height = 5.5, width = 6)

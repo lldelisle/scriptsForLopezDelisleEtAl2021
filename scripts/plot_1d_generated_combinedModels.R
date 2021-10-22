@@ -68,6 +68,45 @@ data <- lapply(unique(my.table$full.path.input), function(fn){
 })
 names(data) <- unique(my.table$input)
 
+# Plot the FigS2:
+my.gene <- "gauss_0.5_0.75_0.25_gauss_0.5_2_0.2"
+my.title <- "N(0.75, 0.25)\nN(2, 0.2)\n2361 cells"
+n.bins <- 80
+real <- data[[1]][, paste0(my.gene, "_expression")]
+from.counts <- log(1 + 10 ^ 4 * data[[1]][, my.gene] / data[[1]]$nCount_RNA)
+breaks <- seq(0, 3, length.out = n.bins)
+mids <- (breaks[1:(length(breaks) - 1)] + breaks[2:length(breaks)]) / 2
+delta.bin <- breaks[2] - breaks[1]
+original.distrib <- (dnorm(mids, mean = 0.75, sd = 0.25) + dnorm(mids, mean = 2, sd = 0.2)) / 2 * nrow(data[[1]]) * delta.bin
+new.df <- data.frame(value = c(real, from.counts), condition = rep(c("Simulated", "From data"), each = nrow(data[[1]])))
+my.colors <- c("Original distribution" = "blue",
+               "Simulated" = "lightblue",
+               "From data" = "darkred",
+               "Density from data" = "red"
+)
+ggplot(new.df, aes(x = value, fill = condition, color = condition)) +
+  geom_histogram(alpha = 0.5, position = "identity", binwidth = delta.bin) +
+  geom_line(data = data.frame(value = mids, y = original.distrib, condition = "Original distribution"),
+            aes(y = y)) +
+  geom_density(data = subset(new.df, condition == "From data", select = "value"),
+               aes(x = value, color = "Density from data", fill = NULL, y = ..density.. * nrow(data[[1]]) * delta.bin)) +
+  theme_classic() + 
+  geom_blank(data = data.frame(a = my.colors, b = names(my.colors)),
+             aes(fill = b, color = b), inherit.aes = F) +
+  scale_fill_manual("",
+                    values = my.colors,
+                    breaks = names(my.colors)) +
+  scale_color_manual("",
+                     values = my.colors,
+                     breaks = names(my.colors)) +
+  xlab(expression(paste("log(1 + ", 10^{4}, lambda[g], ")"))) +
+  ylab("Number of cells") +
+  ggtitle(my.title) +
+  theme(plot.title = element_text(hjust = 0.5))
+ggsave(paste0(output.prefix, "_figS2.pdf"),
+       width = 5.5, height = 3.5)
+
+
 # Get the size of each group
 if (length(unique(my.table$input)) == 1 & length(setdiff(unique(my.table$group), "")) == 1){
   nb.per.group <- table(data[[1]][, setdiff(unique(my.table$group), "")])

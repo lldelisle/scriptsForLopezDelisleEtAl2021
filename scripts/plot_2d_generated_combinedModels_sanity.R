@@ -580,7 +580,7 @@ g <- ggplot(all.pdfs_round, aes(x, y)) +
 ggsave(paste0(output.prefix, "_combinedModels_all.pdf"), g, width = 3 + 1.5 * length(unique(all.pdfs_round$id)), height = 3 + 1.5 * length(labeller.cond), limitsize = F)
 
 # Selected experiments to plot:
-figs <- list('figS5' = 1:7
+figs <- list('figS6' = 1:7
 )
 ggplots <- list()
 for(fig.name in names(figs)){

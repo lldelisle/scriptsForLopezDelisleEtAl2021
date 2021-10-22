@@ -412,6 +412,14 @@ labeller.cond <- c("original\ndistribution", "generated\nexpression",
                    "expression\ninfered\nby baredSC")
 names(labeller.cond) <- c("OriginalDistrib", "prePoisson",
                           "postPoisson", "baredSC")
+# label.group <- paste0(nb.per.group, " cells")
+# names(label.group) <- names(nb.per.group)
+
+# ggplot(pdfs, aes(x, y)) +
+#   geom_tile(aes(fill = log(1 + value))) +
+#   facet_wrap(i + group ~ .) +
+#   theme_classic() +
+#   scale_fill_gradient(low="white", high="black") 
 
 all.pdfs <- rbind(pdfs[, c("x", "y", "value", "id", "condition")], pdfs.pre, pdfs.input, pdfs.original.distrib)
 all.pdfs <- merge(all.pdfs, unique(meta.data[, c("i", "id", "group")]))
@@ -478,6 +486,11 @@ for(fig.name in names(figs)){
     geom_tile(aes(fill = log(1 + value))) +
     facet_grid(condition ~ i, labeller = labeller(i = my.labeller,
                                                   condition = labeller.cond)) +
+    # geom_text(data = my.prop.model, aes(x = 1 + 0.5 * ngauss, label = ngauss, size = prop),
+    #           y = max(all.pdfs_round$y) * 0.9,
+    #           show.legend = F) +
+    # geom_point(data = my.prop.model, aes(size = prop),
+    #           x = 1, y = 1, color = NA) +
     geom_text(data = my.corr,
               aes(label = label),
               x = min(my.df$x), y = max(my.df$y) * 0.9,
@@ -494,6 +507,8 @@ for(fig.name in names(figs)){
     theme_classic() +
     xlab(expression(paste("log(1 + ", 10^4, lambda[g1], ")"))) + 
     ylab(expression(paste("log(1 + ", 10^4, lambda[g2], ")"))) + 
+    # scale_size("proportion\nof each model",
+    #            guide = guide_legend(override.aes = list(colour = "black", shape = utf8ToInt("1")))) +
     scale_fill_gradient(low="white", high="black")
   if (fig.name != 'fig5c'){
     ggplots[[fig.name]] <- g +
@@ -514,6 +529,11 @@ for(fig.name in names(figs)){
                  labeller = labeller(i = my.labeller,
                                    group= label.group,
                                    condition = labeller.cond)) +
+    # geom_text(data = my.prop.model, aes(x = 1.8 + 0.3 * ngauss, label = ngauss, size = prop),
+    #           y = max(all.pdfs_round$y) * 0.9,
+    #           show.legend = F) +
+    # geom_point(data = my.prop.model, aes(size = prop),
+    #            x = 1, y = 1, color = NA) +
     geom_text(data = my.corr,
               aes(label = label),
               x = min(my.df$x), y = max(my.df$y) * 0.9,
@@ -530,14 +550,16 @@ for(fig.name in names(figs)){
     theme_classic() +
     xlab(expression(paste("log(1 + ", 10^4, lambda[g1], ")"))) + 
     ylab(expression(paste("log(1 + ", 10^4, lambda[g2], ")"))) + 
+    # scale_size("proportion\nof each model",
+    #            guide = guide_legend(override.aes = list(colour = "black", shape = utf8ToInt("1")))) +
     scale_fill_gradient(low="white", high="black")
   if (fig.name != 'fig5c'){
-    ggplots[[gsub("fig5", "figS4", fig.name)]] <- g +
+    ggplots[[gsub("fig5", "figS5", fig.name)]] <- g +
       theme(legend.position = "none")
   } else {
-    ggplots[[gsub("fig5", "figS4", fig.name)]] <- g
+    ggplots[[gsub("fig5", "figS5", fig.name)]] <- g
   }
-  ggsave(paste0(output.prefix, "_combinedModels_", gsub("fig5", "figS4", fig.name), ".pdf"), g,
+  ggsave(paste0(output.prefix, "_combinedModels_", gsub("fig5", "figS5", fig.name), ".pdf"), g,
          width = 3 + 1.5 * length(unique(my.df$id)), height = 5, limitsize = F)
 }
 
@@ -552,11 +574,11 @@ ggsave(paste0(output.prefix, "_combinedModels_fig5abc.pdf"), g.all,
        width = 10, height = 9)
 
 g.all.s <- ggarrange(
-  ggarrange(ggplots[['figS4a']],
+  ggarrange(ggplots[['figS5a']],
             labels = c("A")),
-  ggarrange(ggplots[['figS4b']], ggplots[['figS4c']],
+  ggarrange(ggplots[['figS5b']], ggplots[['figS5c']],
             labels = c("B", "C"), widths = c(1.2, 2)),
   nrow = 2
 )
-ggsave(paste0(output.prefix, "_combinedModels_figS4abc.pdf"), g.all.s,
+ggsave(paste0(output.prefix, "_combinedModels_figS5abc.pdf"), g.all.s,
        width = 19, height = 11)

@@ -95,7 +95,7 @@ all.data <- c(all.data, all.data.noERCC)
 # I measure the Xi = ki / Ni (for each cell the normalized expression)
 norm.counts <- lapply(all.data, function(m){apply(m, 2, function(v){v / sum(v)})})
 
-# I estimate the lambda = mean gene expression as sum(ki) / sum(Ni)
+# I estimate the lambda  = mean gene expression by Mg = sum(ki) / sum(Ni)
 gene_norm_means <- lapply(all.data, function(m){rowSums(m) / sum(m)})
 
 # I get the Nis
@@ -108,7 +108,7 @@ g <- ggplot(counts.df, aes(x = "", y = tot.counts)) +
   facet_grid(expe ~ ., scales = "free")
 ggsave(file.path(output.directory, "Nis.pdf"), width = 5, height = 10)
 
-# I evaluate the phi_poisson:
+# I evaluate the phi_poisson to compare to Svensson:
 ddply(counts.df, .(expe), summarize,
       phi.poisson = round(var(tot.counts)/mean(tot.counts)^2, 3))
 #                expe phi.poisson
@@ -126,7 +126,7 @@ ddply(counts.df, .(expe), summarize,
 # 12 Svensson2_noERCC      0.4247
 # 13            Zheng      0.0426
 
-# Select like in Ahlmann-Eltze et al.
+# Select like in Ahlmann-Eltze et al. and check the phi_poisson
 all.data.subset <- lapply(names(all.data), function(expe){
   threshold <- median(tot.counts[[expe]]) * c(1, 1.3)
   all.data[[expe]][, which(tot.counts[[expe]] < threshold[2] & tot.counts[[expe]] > threshold[1])]
@@ -157,33 +157,33 @@ ddply(counts.df.subset, .(expe), summarize,
 # 13            Zheng_subset       0.003
 
 
-# The estimate of variance of Xi
-var_est <- lapply(names(all.data), function(expe){
+# The estimate of normalized variance of Xi
+norm_var_est <- lapply(names(all.data), function(expe){
   rowSums(rep(1, nrow(all.data[[expe]])) %*% t(tot.counts[[expe]]) * 
             (norm.counts[[expe]] - gene_norm_means[[expe]]) ^ 2) /
     (length(tot.counts[[expe]]) - 1)
 })
-names(var_est) <- names(all.data)
+names(norm_var_est) <- names(all.data)
 
-# Fit NB on var_est:
-slopeVarNB <- lapply(names(all.data), function(expe){
-  lm(var_est[[expe]] ~  1 * gene_norm_means[[expe]] + I(gene_norm_means[[expe]]^2) + 0)$coefficients
+# Fit NB on norm_var_est:
+slopeAVarNB <- lapply(names(all.data), function(expe){
+  lm(norm_var_est[[expe]] ~  1 * gene_norm_means[[expe]] + I(gene_norm_means[[expe]]^2) + 0)$coefficients
 })
-names(slopeVarNB) <- names(all.data)
+names(slopeAVarNB) <- names(all.data)
 phiNB <- lapply(names(all.data), function(expe){
-  slopeVarNB[[expe]] / 
+  slopeAVarNB[[expe]] / 
     ((sum(tot.counts[[expe]])^2 - sum(tot.counts[[expe]]^2)) / 
        ((length(tot.counts[[expe]]) - 1) * sum(tot.counts[[expe]])))
 })
 names(phiNB) <- names(all.data)
-slopeVarNBlog <- lapply(names(all.data), function(expe){
+slopeAVarNBlog <- lapply(names(all.data), function(expe){
   coef(nls(log(y) ~ log(x + a * x^2),
-           data = data.frame(x = gene_norm_means[[expe]], y = var_est[[expe]]),
+           data = data.frame(x = gene_norm_means[[expe]], y = norm_var_est[[expe]]),
            start=list(a = 0)))
 })
-names(slopeVarNBlog) <- names(all.data)
+names(slopeAVarNBlog) <- names(all.data)
 phiNBlog <- lapply(names(all.data), function(expe){
-  slopeVarNBlog[[expe]] / 
+  slopeAVarNBlog[[expe]] / 
     ((sum(tot.counts[[expe]])^2 - sum(tot.counts[[expe]]^2)) / 
        ((length(tot.counts[[expe]]) - 1) * sum(tot.counts[[expe]])))
 })
@@ -220,24 +220,24 @@ names(slopeKVarNB) <- names(all.data)
 big.df <- data.frame(gene_means = unlist(gene_norm_means),
                      expe = rep(names(all.data), sapply(all.data, nrow)),
                      gene_name = unlist(lapply(all.data, rownames)),
-                     var_est = unlist(var_est),
+                     norm_var_est = unlist(norm_var_est),
                      prop_zeros = unlist(prop.zeros),
                      prop_zeros_poisson = unlist(prop.zeros.poisson),
                      prop_zeros_NB = unlist(prop.zeros.NB),
                      prop_zeros_NBlog = unlist(prop.zeros.NBlog),
-                     slopeVarNB = rep(unlist(slopeVarNB), sapply(all.data, nrow)),
+                     slopeAVarNB = rep(unlist(slopeAVarNB), sapply(all.data, nrow)),
                      phiNB = rep(unlist(phiNB), sapply(all.data, nrow)),
-                     slopeVarNBlog = rep(unlist(slopeVarNBlog), sapply(all.data, nrow)),
+                     slopeAVarNBlog = rep(unlist(slopeAVarNBlog), sapply(all.data, nrow)),
                      phiNBlog = rep(unlist(phiNBlog), sapply(all.data, nrow)),
                      k_means = unlist(k_means),
                      k_var = unlist(k_var),
                      slopeKVarNB = rep(unlist(slopeKVarNB), sapply(all.data, nrow))
 )
-# The var_est when it follows a NB:
-big.df$var_est_NB <-  big.df$gene_means + big.df$slopeVarNB * big.df$gene_means ^ 2
-# The var_est when it follows a NB:
-big.df$var_est_NBlog <-  big.df$gene_means + big.df$slopeVarNBlog * big.df$gene_means ^ 2
-# The k_var when it follows a NB:
+# The norm_var_est when it follows a NB:
+big.df$norm_var_est_NB <-  big.df$gene_means + big.df$slopeAVarNB * big.df$gene_means ^ 2
+# The norm_var_est when it follows a NB with NB fitted in log:
+big.df$norm_var_est_NBlog <-  big.df$gene_means + big.df$slopeAVarNBlog * big.df$gene_means ^ 2
+# The k_var when it follows a NB (like in Svensson):
 big.df$k_var_NB <-  big.df$k_means + big.df$slopeKVarNB * big.df$k_means ^ 2
 
 
@@ -249,7 +249,8 @@ write.table(big.df, file.path(output.directory, "big.df.txt"), row.names = F,
             quote = F, sep = "\t")
 
 big.df$expe_type <- factor(big.df$expe_type, levels = c("Control", "Cells"))
-
+big.df <- ddply(big.df, .(expe), mutate,
+                ngenes = length(gene_name))
 # There are a lot of genes. It can be misleading on the graph
 # I prefer to display a trend line with error bars
 # I apply a kde
@@ -262,9 +263,9 @@ smooth <- do.call(rbind, lapply(unique(big.df$expe), function(my.expe){
   weight <- with(subset(my.df, gene_means > 0),
                  weight_gauss(log10(gene_means), df$logx, sigma))
   df$logy <- with(subset(my.df, gene_means > 0),
-               weight %*% log10(var_est))
+               weight %*% log10(norm_var_est))
   df$sigmalog <- with(subset(my.df, gene_means > 0),
-                   sqrt(weight %*% (log10(var_est)^2) - df$logy^2))
+                   sqrt(weight %*% (log10(norm_var_est)^2) - df$logy^2))
   df$min.logx <- min(log10(my.df$gene_means))
   df$expe = my.expe
   return(df)
@@ -284,7 +285,7 @@ names(my.labeller) <- c("Svensson1", "Svensson2", "Klein", "Macosko", "Zheng",
 
 # Reproduce Svensson analysis:
 g1 <- ggplot(subset(big.df, !grepl("noERCC", expe)), aes(x = k_means)) +
-  geom_point(aes(y = k_var), alpha = 0.01) +
+  geom_point(aes(y = k_var, alpha = 300 / ngenes), show.legend = F) +
   geom_abline(aes(intercept = 0, slope = 1, color = "Poisson"), show.legend = F) +
   geom_line(aes(y = k_var_NB, colour = "NB")) +
   facet_wrap(expe_type ~ expe, scales = 'free', nrow = 2, ncol = 5,
@@ -296,7 +297,8 @@ g1 <- ggplot(subset(big.df, !grepl("noERCC", expe)), aes(x = k_means)) +
   theme_classic() +
   theme(legend.position="bottom",
         text = element_text(size = 15)) +
-  labs(color = "")
+  labs(color = "") +
+  scale_alpha_identity()
 
 ggsave(file.path(output.directory, "figSvensson.pdf"), width = 12, height = 6)
 ggsave(file.path(output.directory, "figSvensson.png"), width = 12, height = 6,
@@ -314,10 +316,10 @@ for (my.expe in names(my.labeller)){
     geom_ribbon(data = subset(smooth, expe == my.expe),
                 aes(ymin = lowy, ymax = highy, x = x, fill = "data"),
                 alpha = 0.2) +
-    geom_point(aes(y = var_est), alpha = 0.1) +
+    geom_point(aes(y = norm_var_est), alpha = 0.1) +
     geom_abline(aes(intercept = 0, slope = 1, color = "Poisson"), show.legend = F) +
-    geom_line(aes(y = var_est_NBlog, colour = "NB")) +
-    # geom_line(aes(y = var_est_NB, colour = "NB")) +
+    geom_line(aes(y = norm_var_est_NBlog, colour = "NB")) +
+    # geom_line(aes(y = norm_var_est_NB, colour = "NB")) +
     geom_line(data = subset(smooth, expe == my.expe),
               aes(x, y, colour = "data")) +
     facet_wrap(. ~ expe.name,
@@ -325,7 +327,7 @@ for (my.expe in names(my.labeller)){
     scale_x_continuous(trans='log10')  +
     scale_y_continuous(trans='log10') +
     xlab(expression(italic(M[g]))) +
-    ylab(expression(italic(V[g]))) +
+    ylab(expression(italic(tilde(V)[g]))) +
     theme_classic() +
     theme(text = element_text(size = 15)) +
     geom_blank(data = data.frame(gene_means = rep(1e-6, 3), y = 1e-6, 
@@ -333,9 +335,10 @@ for (my.expe in names(my.labeller)){
                aes(y = y, color = groupCol, fill = groupCol)) +
     scale_fill_manual(name = "",
                       values = c('data' = "yellow",
-                                 "Poisson" = NA,
-                                 "NB" = NA)) +
-    labs(color = "")
+                                 "Poisson" = "white",
+                                 "NB" = "white")) +
+    scale_color_discrete("",
+                         labels = c('data', "Poisson", "NB"))
 }
 g <- ggarrange(ggarrange(plotlist = ggplot.list[["Control"]], legend = "none",
                          nrow = 1, labels = paste(c("A", rep("", length(ggplot.list[["Control"]]) - 1)),
@@ -348,7 +351,7 @@ g <- ggarrange(ggarrange(plotlist = ggplot.list[["Control"]], legend = "none",
             nrow = 1 , widths = c(2, length(ggplot.list[["Control"]]) - 2)
             ),
           nrow = 2)
-ggsave(file.path(output.directory, "fig1_withERCC.png"), width = 15, height = 6, dpi = 500)
+ggsave(file.path(output.directory, "fig1_withERCC.png"), width = 15, height = 6, dpi = 500, bg = "white")
 ggsave(file.path(output.directory, "fig1_withERCC.pdf"), width = 15, height = 6)
 
 # Same without ERCC
@@ -361,10 +364,10 @@ for (my.expe in intersect(paste0(names(my.labeller), "_noERCC"), unique(big.df$e
     geom_ribbon(data = subset(smooth, expe == my.expe),
                 aes(ymin = lowy, ymax = highy, x = x, fill = "data"),
                 alpha = 0.2) +
-    geom_point(aes(y = var_est), alpha = 0.1) +
+    geom_point(aes(y = norm_var_est), alpha = 0.1) +
     geom_abline(aes(intercept = 0, slope = 1, color = "Poisson"), show.legend = F) +
-    geom_line(aes(y = var_est_NBlog, colour = "NB")) +
-    # geom_line(aes(y = var_est_NB, colour = "NB")) +
+    geom_line(aes(y = norm_var_est_NBlog, colour = "NB")) +
+    # geom_line(aes(y = norm_var_est_NB, colour = "NB")) +
     geom_line(data = subset(smooth, expe == my.expe),
               aes(x, y, colour = "data")) +
     facet_wrap(. ~ expe.name,
@@ -372,7 +375,7 @@ for (my.expe in intersect(paste0(names(my.labeller), "_noERCC"), unique(big.df$e
     scale_x_continuous(trans='log10')  +
     scale_y_continuous(trans='log10') +
     xlab(expression(italic(M[g]))) +
-    ylab(expression(italic(V[g]))) +
+    ylab(expression(italic(tilde(V)[g]))) +
     theme_classic() +
     theme(text = element_text(size = 13)) +
     geom_blank(data = data.frame(gene_means = rep(1e-6, 3), y = 1e-6, 
@@ -380,9 +383,10 @@ for (my.expe in intersect(paste0(names(my.labeller), "_noERCC"), unique(big.df$e
                aes(y = y, color = groupCol, fill = groupCol)) +
     scale_fill_manual(name = "",
                       values = c('data' = "yellow",
-                                 "Poisson" = NA,
-                                 "NB" = NA)) +
-    labs(color = "")
+                                 "Poisson" = "white",
+                                 "NB" = "white")) +
+    scale_color_discrete("",
+                         labels = c('data', "Poisson", "NB"))
 }
 g <- ggarrange(ggarrange(plotlist = ggplot.list[["Control"]], legend = "none",
                          nrow = 1, labels = paste(c("A", rep("", length(ggplot.list[["Control"]]) - 1)),
@@ -395,7 +399,7 @@ g <- ggarrange(ggarrange(plotlist = ggplot.list[["Control"]], legend = "none",
                  nrow = 1 , widths = c(2, length(ggplot.list[["Control"]]) - 2)
                ),
                nrow = 2)
-ggsave(file.path(output.directory, "fig1_noERCC.png"), width = 12, height = 6, dpi = 500)
+ggsave(file.path(output.directory, "fig1_noERCC.png"), width = 12, height = 6, dpi = 500, bg = "white")
 ggsave(file.path(output.directory, "fig1_noERCC.pdf"), width = 12, height = 6)
 
 # We plot the figure with colors for different gene type
@@ -405,13 +409,13 @@ names(ggplot.list) <- levels(big.df$expe_type)
 for (my.expe in names(my.labeller)){
   sub.df <- subset(big.df, expe == my.expe)
   ggplot.list[[sub.df$expe_type[1]]][[my.expe]] <- ggplot(sub.df, aes(x = gene_means)) +
-    geom_point(aes(y = var_est, color = grepl("ERCC", gene_name)), alpha = 0.1)  +
+    geom_point(aes(y = norm_var_est, color = grepl("ERCC", gene_name)), alpha = 0.1) +
     facet_wrap(. ~ expe.name,
                labeller = labeller(expe.name = my.labeller)) +
     scale_x_continuous(trans='log10')  +
     scale_y_continuous(trans='log10') +
     xlab(expression(italic(M[g]))) +
-    ylab(expression(italic(V[g]))) +
+    ylab(expression(italic(tilde(V)[g]))) +
     scale_color_manual(name = "gene type", labels = c('TRUE' = 'ERCC', 'FALSE' = 'gene'),
                        values = c('TRUE' = "blue", 'FALSE' = "red")) +
     guides(colour = guide_legend(override.aes = list(alpha = 0.5))) +
@@ -429,7 +433,7 @@ g <- ggarrange(ggarrange(plotlist = ggplot.list[["Control"]], legend = "none",
                  nrow = 1 , widths = c(2, length(ggplot.list[["Control"]]) - 2)
                ),
                nrow = 2)
-ggsave(file.path(output.directory, "figS1_geneColor.png"), width = 15, height = 6, dpi = 500)
+ggsave(file.path(output.directory, "figS1_geneColor.png"), width = 15, height = 6, dpi = 500, bg = "white")
 ggsave(file.path(output.directory, "figS1_geneColor.pdf"), width = 15, height = 6)
 
 # In order to generate data with realistic Nis, I take nih3t3 experiment:
